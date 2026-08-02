@@ -13,14 +13,38 @@ Minimal Cursor extension: two horizontal token meters for **free** (`autoPercent
 
 ## Install
 
+### One-liner (no clone)
+
+```bash
+curl -fsSL https://github.com/SebberSky/cursor-token-remaining/releases/latest/download/install.sh | bash
+```
+
+Then in Cursor: **Developer: Reload Window**.
+
+Optional pins:
+
+```bash
+# force rebuild from a branch/tag instead of the release VSIX
+curl -fsSL https://github.com/SebberSky/cursor-token-remaining/releases/latest/download/install.sh \
+  | TOKEN_REMAINING_FORCE_BUILD=1 TOKEN_REMAINING_REF=main bash
+```
+
+### From a clone
+
+```bash
+git clone https://github.com/SebberSky/cursor-token-remaining.git
+cd cursor-token-remaining
+./install.sh
+```
+
+Or manually:
+
 ```bash
 npm install
 npm run package
 ```
 
-In Cursor: **Extensions: Install from VSIX…** → pick the generated `.vsix`.
-
-Or press **F5** in this folder to launch an Extension Development Host.
+Then **Extensions: Install from VSIX…**, or press **F5** for an Extension Development Host.
 
 ## Auth
 
