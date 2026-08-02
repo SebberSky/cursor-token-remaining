@@ -2,7 +2,7 @@
 # Install Cursor Token Remaining (status-bar / panel meters).
 #
 # One-liner (no clone):
-#   curl -fsSL https://github.com/SebberSky/cursor-token-remaining/releases/latest/download/install.sh | bash
+#   curl -fsSL https://github.com/SebberSky/cursor-token-remaining/releases/latest/download/bootstrap.sh | bash
 #
 # Or from raw main (after merge):
 #   curl -fsSL https://raw.githubusercontent.com/SebberSky/cursor-token-remaining/main/install.sh | bash

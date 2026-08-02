@@ -16,7 +16,7 @@ Minimal Cursor extension: two horizontal token meters for **free** (`autoPercent
 ### One-liner (no clone)
 
 ```bash
-curl -fsSL https://github.com/SebberSky/cursor-token-remaining/releases/latest/download/install.sh | bash
+curl -fsSL https://github.com/SebberSky/cursor-token-remaining/releases/latest/download/bootstrap.sh | bash
 ```
 
 Then in Cursor: **Developer: Reload Window**.
@@ -25,8 +25,8 @@ Optional pins:
 
 ```bash
 # force rebuild from a branch/tag instead of the release VSIX
-curl -fsSL https://github.com/SebberSky/cursor-token-remaining/releases/latest/download/install.sh \
-  | TOKEN_REMAINING_FORCE_BUILD=1 TOKEN_REMAINING_REF=main bash
+curl -fsSL https://github.com/SebberSky/cursor-token-remaining/releases/latest/download/bootstrap.sh \
+  | TOKEN_REMAINING_FORCE_BUILD=1 TOKEN_REMAINING_REF=feature/initial-extension bash
 ```
 
 ### From a clone
