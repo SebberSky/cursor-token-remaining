@@ -117,16 +117,54 @@ install_vsix() {
   "${cursor_bin}" --install-extension "${vsix}"
 }
 
+resolve_release_vsix_url() {
+  # Prefer a stable alias; fall back to versioned / any *.vsix on the latest release.
+  local candidates=(
+    "https://github.com/${REPO}/releases/latest/download/extension.vsix"
+    "https://github.com/${REPO}/releases/latest/download/cursor-token-remaining.vsix"
+  )
+  local url
+  for url in "${candidates[@]}"; do
+    if have_cmd curl; then
+      if curl -fsSIL "${url}" >/dev/null 2>&1; then
+        echo "${url}"
+        return
+      fi
+    elif have_cmd wget; then
+      if wget --spider -q "${url}" 2>/dev/null; then
+        echo "${url}"
+        return
+      fi
+    fi
+  done
+
+  local api="https://api.github.com/repos/${REPO}/releases/latest"
+  local browser_url=""
+  if have_cmd curl; then
+    browser_url="$(curl -fsSL "${api}" 2>/dev/null | sed -n 's/.*"browser_download_url": "\([^"]*\.vsix\)".*/\1/p' | head -1 || true)"
+  elif have_cmd wget; then
+    browser_url="$(wget -qO- "${api}" 2>/dev/null | sed -n 's/.*"browser_download_url": "\([^"]*\.vsix\)".*/\1/p' | head -1 || true)"
+  fi
+  if [[ -n "${browser_url}" ]]; then
+    echo "${browser_url}"
+  fi
+}
+
 try_release_vsix() {
   if [[ "${FORCE_BUILD}" == "1" ]]; then
     return 1
   fi
 
+  local url
+  url="$(resolve_release_vsix_url)"
+  if [[ -z "${url}" ]]; then
+    return 1
+  fi
+
   TMP="$(mktemp -d "${TMPDIR:-/tmp}/cursor-token-remaining-vsix.XXXXXX")"
   local vsix="${TMP}/cursor-token-remaining.vsix"
-  local url="https://github.com/${REPO}/releases/latest/download/cursor-token-remaining.vsix"
 
-  echo "→ Fetching latest release VSIX"
+  echo "→ Fetching release VSIX"
   if ! download_file "${url}" "${vsix}" 2>/dev/null; then
     rm -rf "${TMP}"
     TMP=""
