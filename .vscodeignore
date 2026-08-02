@@ -9,3 +9,5 @@ node_modules/**
 *.vsix
 install.sh
 README.md
+media/demo.gif
+media/_preview.png

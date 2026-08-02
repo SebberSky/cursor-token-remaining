@@ -2,6 +2,8 @@
 
 Minimal Cursor extension: two horizontal token meters for **free** (`autoPercentUsed`) and **api** (`apiPercentUsed`).
 
+![Token meters demo](media/demo.gif)
+
 ## What you get
 
 - Panel view **Tokens → Token Meters** with two tubes, centered `%`, and a water-ripple animation when values change
