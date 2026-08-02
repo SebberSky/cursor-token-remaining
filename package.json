@@ -1,0 +1,101 @@
+{
+  "name": "cursor-token-remaining",
+  "displayName": "Cursor Token Remaining",
+  "description": "Two animated token meters (free + API) in the status bar area.",
+  "version": "0.2.9",
+  "publisher": "guyrocker",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "cursorTokenRemaining.refresh",
+        "title": "Cursor Tokens: Refresh"
+      },
+      {
+        "command": "cursorTokenRemaining.showMeters",
+        "title": "Cursor Tokens: Show Meters"
+      },
+      {
+        "command": "cursorTokenRemaining.showFreeColors",
+        "title": "Cursor Tokens: Change FREE Color"
+      },
+      {
+        "command": "cursorTokenRemaining.showApiColors",
+        "title": "Cursor Tokens: Change API Color"
+      }
+    ],
+    "viewsContainers": {
+      "panel": [
+        {
+          "id": "cursorTokenRemaining",
+          "title": "Tokens",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "cursorTokenRemaining": [
+        {
+          "type": "webview",
+          "id": "cursorTokenRemaining.meters",
+          "name": "Token Meters",
+          "visibility": "visible"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Cursor Token Remaining",
+      "properties": {
+        "cursorTokenRemaining.pollIntervalSeconds": {
+          "type": "number",
+          "default": 60,
+          "minimum": 15,
+          "description": "Background refresh interval in seconds (prompt-finish refresh is separate)."
+        },
+        "cursorTokenRemaining.showStatusBar": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show compact free/api percentages in the status bar."
+        },
+        "cursorTokenRemaining.autoReveal": {
+          "type": "boolean",
+          "default": true,
+          "description": "Open the Token Meters panel on startup."
+        },
+        "cursorTokenRemaining.freeBackground": {
+          "type": "string",
+          "default": "transparent",
+          "description": "FREE tube background / track color. Default transparent (clear). Use #RRGGBB or transparent."
+        },
+        "cursorTokenRemaining.apiBackground": {
+          "type": "string",
+          "default": "transparent",
+          "description": "API tube background / track color. Default transparent (clear). Use #RRGGBB or transparent."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --external:node:sqlite --format=cjs --platform=node --sourcemap",
+    "watch": "npm run compile -- --watch",
+    "package": "npm run compile && vsce package --no-dependencies --allow-missing-repository",
+    "vscode:prepublish": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^2.22.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.3.0"
+  }
+}
