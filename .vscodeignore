@@ -1,0 +1,13 @@
+src/**
+tsconfig.json
+.gitignore
+**/*.map
+**/*.ts
+!out/**/*.js
+node_modules/**
+.vscode/**
+*.vsix
+install.sh
+README.md
+media/demo.gif
+media/_preview.png
