@@ -1,34 +1,37 @@
 import * as vscode from "vscode";
-import type { TokenUsage } from "./usage";
-import { deepen, isTransparent, type MeterKind } from "./colors";
-import { buildBreakdownPlain } from "./breakdown";
+import type { Meter, ProviderSnapshot } from "./core/types";
+import { deepen, isTransparent } from "./colors";
+import { buildMeterPlain } from "./breakdown";
+
+export type MeterStyle = {
+  fill: string;
+  background: string;
+};
 
 export class MetersViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = "cursorTokenRemaining.meters";
 
   private view?: vscode.WebviewView;
-  private latest?: TokenUsage;
-  private error?: string;
-  private freeColor = "#3ecf8e";
-  private apiColor = "#5b9cff";
-  private freeBackground = "transparent";
-  private apiBackground = "transparent";
-  private onTubeClick?: (kind: MeterKind) => void;
+  private groups: ProviderSnapshot[] = [];
+  private styles = new Map<string, MeterStyle>();
+  private onTubeClick?: (meterId: string) => void;
+  private onSignIn?: () => void;
 
-  setOnTubeClick(handler: (kind: MeterKind) => void): void {
+  setOnTubeClick(handler: (meterId: string) => void): void {
     this.onTubeClick = handler;
   }
 
-  setColors(
-    freeColor: string,
-    apiColor: string,
-    freeBackground = this.freeBackground,
-    apiBackground = this.apiBackground
-  ): void {
-    this.freeColor = freeColor;
-    this.apiColor = apiColor;
-    this.freeBackground = freeBackground;
-    this.apiBackground = apiBackground;
+  setOnSignIn(handler: () => void): void {
+    this.onSignIn = handler;
+  }
+
+  setStyle(meterId: string, style: MeterStyle): void {
+    this.styles.set(meterId, style);
+    this.pushState(false);
+  }
+
+  setStyles(styles: Map<string, MeterStyle>): void {
+    this.styles = styles;
     this.pushState(false);
   }
 
@@ -47,49 +50,54 @@ export class MetersViewProvider implements vscode.WebviewViewProvider {
         this.pushState(true);
         return;
       }
-      if (msg?.type === "click" && (msg.kind === "free" || msg.kind === "api")) {
-        this.onTubeClick?.(msg.kind);
+      if (msg?.type === "click" && typeof msg.id === "string") {
+        this.onTubeClick?.(msg.id);
+        return;
+      }
+      if (msg?.type === "signin") {
+        this.onSignIn?.();
       }
     });
   }
 
-  setUsage(usage: TokenUsage): void {
-    this.latest = usage;
-    this.error = undefined;
+  setGroups(groups: ProviderSnapshot[]): void {
+    this.groups = groups;
     this.pushState(false);
   }
 
-  setError(message: string): void {
-    this.error = message;
-    this.pushState(false);
+  private viewMeters(group: ProviderSnapshot) {
+    return group.meters.map((meter) => this.serializeMeter(meter));
+  }
+
+  private serializeMeter(meter: Meter) {
+    const style = this.styles.get(meter.id);
+    const fill = style?.fill ?? "#3ecf8e";
+    const background = style?.background ?? "transparent";
+    return {
+      id: meter.id,
+      label: meter.label,
+      usedPercent: meter.usedPercent,
+      color: fill,
+      deep: deepen(fill),
+      background: isTransparent(background) ? "transparent" : background,
+      tip: buildMeterPlain(meter),
+    };
   }
 
   private pushState(force: boolean): void {
     if (!this.view) {
       return;
     }
+    const visible = this.groups.filter((g) => !g.skipped);
     void this.view.webview.postMessage({
       type: "update",
       force,
-      error: this.error ?? null,
-      free: this.latest?.freePercent ?? null,
-      api: this.latest?.apiPercent ?? null,
-      freeColor: this.freeColor,
-      apiColor: this.apiColor,
-      freeDeep: deepen(this.freeColor),
-      apiDeep: deepen(this.apiColor),
-      freeBackground: isTransparent(this.freeBackground)
-        ? "transparent"
-        : this.freeBackground,
-      apiBackground: isTransparent(this.apiBackground)
-        ? "transparent"
-        : this.apiBackground,
-      freeTip: this.latest
-        ? buildBreakdownPlain("free", this.latest)
-        : "FREE — คลิกเพื่อเปลี่ยนสี",
-      apiTip: this.latest
-        ? buildBreakdownPlain("api", this.latest)
-        : "API — คลิกเพื่อเปลี่ยนสี",
+      groups: visible.map((group) => ({
+        id: group.id,
+        displayName: group.displayName,
+        error: group.error ?? null,
+        meters: this.viewMeters(group),
+      })),
     });
   }
 
@@ -108,13 +116,6 @@ export class MetersViewProvider implements vscode.WebviewViewProvider {
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     :root {
-      --free: #3ecf8e;
-      --free-deep: #1f8f5f;
-      --api: #5b9cff;
-      --api-deep: #2f6fd6;
-      --track: transparent;
-      --track-free: transparent;
-      --track-api: transparent;
       --label: var(--vscode-descriptionForeground);
       --text: var(--vscode-foreground);
     }
@@ -131,8 +132,17 @@ export class MetersViewProvider implements vscode.WebviewViewProvider {
     .wrap {
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 10px;
       padding: 8px 12px 10px;
+      max-height: 100vh;
+      overflow-y: auto;
+    }
+    .group-title {
+      color: var(--label);
+      font-size: 10px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      padding: 2px 6px 0;
     }
     .row {
       display: grid;
@@ -141,17 +151,15 @@ export class MetersViewProvider implements vscode.WebviewViewProvider {
       gap: 10px;
       padding: 4px 6px;
       border-radius: 8px;
-      background: transparent;
-      transition: background 180ms ease;
     }
-    .row.free-row { background: var(--track-free); }
-    .row.api-row { background: var(--track-api); }
     .title {
       color: var(--label);
       font-size: 10px;
       letter-spacing: 0.02em;
       line-height: 1.2;
       white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .title strong {
       color: var(--text);
@@ -161,14 +169,12 @@ export class MetersViewProvider implements vscode.WebviewViewProvider {
       position: relative;
       height: 22px;
       border-radius: 999px;
-      background: var(--track);
+      background: transparent;
       border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
       overflow: hidden;
       box-shadow: inset 0 1px 2px rgba(0,0,0,0.25);
       cursor: pointer;
     }
-    #freeTube { background: var(--track-free); }
-    #apiTube { background: var(--track-api); }
     .fill {
       position: absolute;
       inset: 0 auto 0 0;
@@ -176,12 +182,6 @@ export class MetersViewProvider implements vscode.WebviewViewProvider {
       border-radius: inherit;
       transition: width 700ms cubic-bezier(0.22, 1, 0.36, 1);
       overflow: hidden;
-    }
-    .fill.free {
-      background: linear-gradient(180deg, color-mix(in srgb, var(--free) 88%, #fff), var(--free-deep));
-    }
-    .fill.api {
-      background: linear-gradient(180deg, color-mix(in srgb, var(--api) 88%, #fff), var(--api-deep));
     }
     .liquid {
       position: absolute;
@@ -237,47 +237,22 @@ export class MetersViewProvider implements vscode.WebviewViewProvider {
     }
     .err {
       color: var(--vscode-errorForeground);
-      padding: 4px 2px 0;
+      padding: 2px 6px 0;
       font-size: 11px;
     }
-    .hidden { display: none; }
+    .empty {
+      color: var(--label);
+      padding: 8px 6px;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="row free-row">
-      <div class="title"><strong>FREE token</strong> (free)</div>
-      <div class="tube" id="freeTube" title="ชี้ดู breakdown · คลิกเปลี่ยนสี">
-        <div class="fill free" id="freeFill"><div class="liquid"></div><div class="wave"></div></div>
-        <div class="pct" id="freePct">—</div>
-      </div>
-    </div>
-    <div class="row api-row">
-      <div class="title"><strong>API token</strong> (api)</div>
-      <div class="tube" id="apiTube" title="ชี้ดู breakdown · คลิกเปลี่ยนสี">
-        <div class="fill api" id="apiFill"><div class="liquid"></div><div class="wave"></div></div>
-        <div class="pct" id="apiPct">—</div>
-      </div>
-    </div>
-    <div class="err hidden" id="err"></div>
-  </div>
+  <div class="wrap" id="root"></div>
   <script>
     const vscode = acquireVsCodeApi();
-    const freeFill = document.getElementById('freeFill');
-    const apiFill = document.getElementById('apiFill');
-    const freePct = document.getElementById('freePct');
-    const apiPct = document.getElementById('apiPct');
-    const freeTube = document.getElementById('freeTube');
-    const apiTube = document.getElementById('apiTube');
-    const err = document.getElementById('err');
-    let last = { free: null, api: null };
-
-    freeTube.addEventListener('click', () => {
-      vscode.postMessage({ type: 'click', kind: 'free' });
-    });
-    apiTube.addEventListener('click', () => {
-      vscode.postMessage({ type: 'click', kind: 'api' });
-    });
+    const root = document.getElementById('root');
+    const last = {};
 
     function fmt(n) {
       if (n == null || Number.isNaN(n)) return '—';
@@ -298,35 +273,79 @@ export class MetersViewProvider implements vscode.WebviewViewProvider {
       return next;
     }
 
+    function ensureRow(groupEl, meter) {
+      let row = groupEl.querySelector('[data-meter="' + meter.id + '"]');
+      if (row) return row;
+      row = document.createElement('div');
+      row.className = 'row';
+      row.dataset.meter = meter.id;
+      row.innerHTML =
+        '<div class="title"><strong></strong></div>' +
+        '<div class="tube">' +
+          '<div class="fill"><div class="liquid"></div><div class="wave"></div></div>' +
+          '<div class="pct">—</div>' +
+        '</div>';
+      const tube = row.querySelector('.tube');
+      tube.addEventListener('click', () => {
+        vscode.postMessage({ type: 'click', id: meter.id });
+      });
+      groupEl.appendChild(row);
+      return row;
+    }
+
+    function render(groups, force) {
+      if (!groups || groups.length === 0) {
+        root.innerHTML = '<div class="empty" id="emptyClick">ไม่มีหลอดให้แสดง<br/>คลิกเพื่อแสดง/ซ่อน หรือล็อกอิน</div>';
+        document.getElementById('emptyClick')?.addEventListener('click', () => {
+          vscode.postMessage({ type: 'click', id: '_empty' });
+        });
+        return;
+      }
+      const empty = root.querySelector('.empty');
+      if (empty) empty.remove();
+      const keepGroups = new Set(groups.map((g) => g.id));
+      for (const el of [...root.querySelectorAll('[data-group]')]) {
+        if (!keepGroups.has(el.dataset.group)) el.remove();
+      }
+      for (const group of groups) {
+        let groupEl = root.querySelector('[data-group="' + group.id + '"]');
+        if (!groupEl) {
+          groupEl = document.createElement('div');
+          groupEl.dataset.group = group.id;
+          groupEl.innerHTML = '<div class="group-title"></div><div class="err" hidden></div>';
+          root.appendChild(groupEl);
+        }
+        groupEl.querySelector('.group-title').textContent = group.displayName;
+        const err = groupEl.querySelector('.err');
+        if (group.error) {
+          err.hidden = false;
+          err.textContent = group.error;
+        } else {
+          err.hidden = true;
+        }
+        const keepMeters = new Set(group.meters.map((m) => m.id));
+        for (const row of [...groupEl.querySelectorAll('[data-meter]')]) {
+          if (!keepMeters.has(row.dataset.meter)) row.remove();
+        }
+        for (const meter of group.meters) {
+          const row = ensureRow(groupEl, meter);
+          row.querySelector('.title strong').textContent = meter.label;
+          const fill = row.querySelector('.fill');
+          const tube = row.querySelector('.tube');
+          const pct = row.querySelector('.pct');
+          fill.style.background =
+            'linear-gradient(180deg, color-mix(in srgb, ' + meter.color + ' 88%, #fff), ' + meter.deep + ')';
+          tube.style.background = meter.background || 'transparent';
+          tube.title = meter.tip || '';
+          last[meter.id] = setBar(fill, pct, meter.usedPercent, last[meter.id], force);
+        }
+      }
+    }
+
     window.addEventListener('message', (event) => {
       const msg = event.data;
       if (!msg || msg.type !== 'update') return;
-      if (msg.freeColor) {
-        document.documentElement.style.setProperty('--free', msg.freeColor);
-        document.documentElement.style.setProperty('--free-deep', msg.freeDeep || msg.freeColor);
-      }
-      if (msg.apiColor) {
-        document.documentElement.style.setProperty('--api', msg.apiColor);
-        document.documentElement.style.setProperty('--api-deep', msg.apiDeep || msg.apiColor);
-      }
-      document.documentElement.style.setProperty(
-        '--track-free',
-        msg.freeBackground || 'transparent'
-      );
-      document.documentElement.style.setProperty(
-        '--track-api',
-        msg.apiBackground || 'transparent'
-      );
-      if (msg.freeTip) freeTube.title = msg.freeTip;
-      if (msg.apiTip) apiTube.title = msg.apiTip;
-      if (msg.error) {
-        err.textContent = msg.error;
-        err.classList.remove('hidden');
-      } else {
-        err.classList.add('hidden');
-      }
-      last.free = setBar(freeFill, freePct, msg.free, last.free, msg.force);
-      last.api = setBar(apiFill, apiPct, msg.api, last.api, msg.force);
+      render(msg.groups || [], !!msg.force);
     });
 
     vscode.postMessage({ type: 'ready' });

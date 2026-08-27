@@ -1,5 +1,3 @@
-export type MeterKind = "free" | "api";
-
 export const DEFAULT_FREE_COLOR = "#3ecf8e";
 export const DEFAULT_API_COLOR = "#5b9cff";
 export const DEFAULT_BACKGROUND = "transparent";
@@ -20,6 +18,28 @@ export const COLOR_PALETTE: { label: string; color: string }[] = [
   { label: "Dark", color: "#1f2937" },
   { label: "Black", color: "#111827" },
 ];
+
+const PROVIDER_PALETTE: Record<string, string[]> = {
+  cursor: [DEFAULT_FREE_COLOR, DEFAULT_API_COLOR],
+  copilot: ["#a78bfa", "#818cf8", "#22d3ee"],
+  claude: ["#fb923c", "#fbbf24", "#fb7185"],
+  codex: ["#14b8a6", DEFAULT_FREE_COLOR],
+  gemini: [DEFAULT_API_COLOR, "#22d3ee", "#818cf8", "#a78bfa"],
+  windsurf: ["#22d3ee", "#a78bfa"],
+};
+
+const FIXED_FILLS: Record<string, string> = {
+  "cursor.free": DEFAULT_FREE_COLOR,
+  "cursor.api": DEFAULT_API_COLOR,
+};
+
+export function defaultFillFor(meterId: string, provider: string, index: number): string {
+  if (FIXED_FILLS[meterId]) {
+    return FIXED_FILLS[meterId];
+  }
+  const palette = PROVIDER_PALETTE[provider] ?? COLOR_PALETTE.map((c) => c.color);
+  return palette[index % palette.length];
+}
 
 export function isTransparent(color: string | undefined): boolean {
   const v = (color ?? "").trim().toLowerCase();
