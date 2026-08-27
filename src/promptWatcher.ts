@@ -3,10 +3,6 @@ import * as os from "os";
 import * as path from "path";
 import * as vscode from "vscode";
 
-/**
- * Refresh when an agent/transcript file settles after writes —
- * a practical signal that a prompt turn finished.
- */
 export function watchPromptActivity(
   onPromptSettled: () => void
 ): vscode.Disposable {
@@ -22,7 +18,6 @@ export function watchPromptActivity(
     if (timer) {
       clearTimeout(timer);
     }
-    // Wait for the turn to finish writing transcripts/tools.
     timer = setTimeout(() => {
       if (!disposed) {
         onPromptSettled();
@@ -46,8 +41,10 @@ export function watchPromptActivity(
           const name = filename.toString();
           if (
             name.endsWith(".jsonl") ||
+            name.endsWith(".json") ||
             name.includes("agent-transcript") ||
-            name.includes("transcript")
+            name.includes("transcript") ||
+            name.includes("session")
           ) {
             schedule();
           }
@@ -78,9 +75,15 @@ function collectWatchRoots(): string[] {
   const roots = new Set<string>();
   const home = os.homedir();
   roots.add(path.join(home, ".cursor", "projects"));
+  roots.add(path.join(home, ".claude", "projects"));
+  roots.add(path.join(home, ".codex"));
+  roots.add(path.join(home, ".gemini"));
 
   for (const folder of vscode.workspace.workspaceFolders ?? []) {
     roots.add(path.join(folder.uri.fsPath, ".cursor"));
+    roots.add(path.join(folder.uri.fsPath, ".claude"));
+    roots.add(path.join(folder.uri.fsPath, ".codex"));
+    roots.add(path.join(folder.uri.fsPath, ".gemini"));
   }
 
   return [...roots];

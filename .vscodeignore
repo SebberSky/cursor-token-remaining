@@ -6,6 +6,9 @@ tsconfig.json
 !out/**/*.js
 node_modules/**
 .vscode/**
+.github/**
+scripts/**
+out-test/**
 *.vsix
 install.sh
 README.md

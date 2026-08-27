@@ -1,13 +1,17 @@
 {
   "name": "cursor-token-remaining",
-  "displayName": "Cursor Token Remaining",
-  "description": "Two animated token meters (free + API) in the status bar area.",
-  "version": "0.2.9",
+  "displayName": "Token Remaining",
+  "description": "Usage meters for Cursor, Copilot, Claude, Codex, Gemini, and Windsurf — status bar, CLI, and MCP.",
+  "version": "0.3.0",
   "publisher": "guyrocker",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/SebberSky/cursor-token-remaining.git"
+  },
+  "bin": {
+    "token-remaining": "./out/cli.js",
+    "token-remaining-mcp": "./out/mcp.js"
   },
   "engines": {
     "vscode": "^1.85.0"
@@ -21,6 +25,30 @@
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
+      {
+        "command": "tokenRemaining.refresh",
+        "title": "Tokens: Refresh"
+      },
+      {
+        "command": "tokenRemaining.showMeters",
+        "title": "Tokens: Show Meters"
+      },
+      {
+        "command": "tokenRemaining.showColors",
+        "title": "Tokens: Meter options"
+      },
+      {
+        "command": "tokenRemaining.visibility",
+        "title": "Tokens: Show/Hide Meters"
+      },
+      {
+        "command": "tokenRemaining.signIn",
+        "title": "Tokens: Sign in / Sign out"
+      },
+      {
+        "command": "tokenRemaining.checkUpdate",
+        "title": "Tokens: Check for Updates"
+      },
       {
         "command": "cursorTokenRemaining.refresh",
         "title": "Cursor Tokens: Refresh"
@@ -58,42 +86,93 @@
       ]
     },
     "configuration": {
-      "title": "Cursor Token Remaining",
+      "title": "Token Remaining",
       "properties": {
-        "cursorTokenRemaining.pollIntervalSeconds": {
+        "tokenRemaining.pollIntervalSeconds": {
           "type": "number",
           "default": 60,
           "minimum": 15,
           "description": "Background refresh interval in seconds (prompt-finish refresh is separate)."
         },
-        "cursorTokenRemaining.showStatusBar": {
+        "tokenRemaining.showStatusBar": {
           "type": "boolean",
           "default": true,
-          "description": "Show compact free/api percentages in the status bar."
+          "description": "Show compact usage percentages in the status bar (max 6 chips)."
         },
-        "cursorTokenRemaining.autoReveal": {
+        "tokenRemaining.autoReveal": {
           "type": "boolean",
           "default": true,
           "description": "Open the Token Meters panel on startup."
         },
+        "tokenRemaining.providers": {
+          "type": "array",
+          "default": ["auto"],
+          "items": {
+            "type": "string",
+            "enum": ["auto", "cursor", "copilot", "claude", "codex", "gemini", "windsurf"]
+          },
+          "description": "Providers to query. Use [\"auto\"] to detect every signed-in account on this machine."
+        },
+        "tokenRemaining.checkUpdates": {
+          "type": "boolean",
+          "default": true,
+          "description": "Check GitHub releases for a newer Token Remaining version on startup."
+        },
+        "tokenRemaining.autoUpdate": {
+          "type": "boolean",
+          "default": true,
+          "description": "When a newer GitHub release exists, download and install the VSIX automatically, then prompt to reload."
+        },
+        "tokenRemaining.updateCheckHours": {
+          "type": "number",
+          "default": 24,
+          "minimum": 1,
+          "description": "Minimum hours between background update checks."
+        },
+        "cursorTokenRemaining.pollIntervalSeconds": {
+          "type": "number",
+          "default": 60,
+          "minimum": 15,
+          "description": "Deprecated alias of tokenRemaining.pollIntervalSeconds."
+        },
+        "cursorTokenRemaining.showStatusBar": {
+          "type": "boolean",
+          "default": true,
+          "description": "Deprecated alias of tokenRemaining.showStatusBar."
+        },
+        "cursorTokenRemaining.autoReveal": {
+          "type": "boolean",
+          "default": true,
+          "description": "Deprecated alias of tokenRemaining.autoReveal."
+        },
         "cursorTokenRemaining.freeBackground": {
           "type": "string",
           "default": "transparent",
-          "description": "FREE tube background / track color. Default transparent (clear). Use #RRGGBB or transparent."
+          "description": "Cursor FREE tube background / track color. Use #RRGGBB or transparent."
         },
         "cursorTokenRemaining.apiBackground": {
           "type": "string",
           "default": "transparent",
-          "description": "API tube background / track color. Default transparent (clear). Use #RRGGBB or transparent."
+          "description": "Cursor API tube background / track color. Use #RRGGBB or transparent."
         }
       }
     }
   },
   "scripts": {
-    "compile": "esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --external:node:sqlite --format=cjs --platform=node --sourcemap",
-    "watch": "npm run compile -- --watch",
+    "compile:ext": "esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --external:node:sqlite --format=cjs --platform=node --sourcemap",
+    "compile:cli": "esbuild src/cli.ts --bundle --outfile=out/cli.js --external:node:sqlite --format=cjs --platform=node --banner:js=\"#!/usr/bin/env node\"",
+    "compile:mcp": "esbuild src/mcp.ts --bundle --outfile=out/mcp.js --external:node:sqlite --format=cjs --platform=node --banner:js=\"#!/usr/bin/env node\"",
+    "compile:test": "esbuild src/core/parse.test.ts --bundle --outfile=out-test/parse.test.js --external:node:sqlite --external:node:test --external:node:assert --external:node:assert/strict --format=cjs --platform=node",
+    "compile": "npm run compile:ext && npm run compile:cli && npm run compile:mcp",
+    "test": "npm run compile:test && node --test out-test/parse.test.js",
+    "watch": "npm run compile:ext -- --watch",
     "package": "npm run compile && vsce package --no-dependencies",
+    "release": "bash scripts/release.sh",
     "vscode:prepublish": "npm run compile"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.18.0",
+    "zod": "^3.24.0"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
