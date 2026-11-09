@@ -15,6 +15,8 @@ export type ProviderSnapshot = {
   displayName: string;
   skipped: boolean;
   error?: string;
+  /** True when auth failed and the panel should show a sign-in CTA. */
+  authError?: boolean;
   meters: Meter[];
   fetchedAt: number;
 };
@@ -59,13 +61,15 @@ export function skippedSnapshot(
 export function failedSnapshot(
   id: string,
   displayName: string,
-  error: string
+  error: string,
+  options?: { authError?: boolean }
 ): ProviderSnapshot {
   return {
     id,
     displayName,
     skipped: false,
     error,
+    authError: options?.authError,
     meters: [],
     fetchedAt: Date.now(),
   };

@@ -1,8 +1,8 @@
 {
   "name": "cursor-token-remaining",
   "displayName": "Token Remaining",
-  "description": "Usage meters for Cursor, Copilot, Claude, Codex, Gemini, and Windsurf — status bar, CLI, and MCP.",
-  "version": "0.3.0",
+  "description": "Usage meters for Cursor, Copilot, Claude, Codex, Gemini, and Windsurf \u2014 status bar, CLI, and MCP.",
+  "version": "0.3.1",
   "publisher": "guyrocker",
   "license": "MIT",
   "repository": {
@@ -106,10 +106,20 @@
         },
         "tokenRemaining.providers": {
           "type": "array",
-          "default": ["auto"],
+          "default": [
+            "auto"
+          ],
           "items": {
             "type": "string",
-            "enum": ["auto", "cursor", "copilot", "claude", "codex", "gemini", "windsurf"]
+            "enum": [
+              "auto",
+              "cursor",
+              "copilot",
+              "claude",
+              "codex",
+              "gemini",
+              "windsurf"
+            ]
           },
           "description": "Providers to query. Use [\"auto\"] to detect every signed-in account on this machine."
         },

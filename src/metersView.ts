@@ -56,6 +56,10 @@ export class MetersViewProvider implements vscode.WebviewViewProvider {
       }
       if (msg?.type === "signin") {
         this.onSignIn?.();
+        return;
+      }
+      if (msg?.type === "refresh") {
+        void vscode.commands.executeCommand("tokenRemaining.refresh");
       }
     });
   }
@@ -96,6 +100,7 @@ export class MetersViewProvider implements vscode.WebviewViewProvider {
         id: group.id,
         displayName: group.displayName,
         error: group.error ?? null,
+        authError: !!group.authError,
         meters: this.viewMeters(group),
       })),
     });
@@ -240,6 +245,16 @@ export class MetersViewProvider implements vscode.WebviewViewProvider {
       padding: 2px 6px 0;
       font-size: 11px;
     }
+    .auth-cta {
+      margin: 4px 6px 0;
+      padding: 4px 8px;
+      font-size: 11px;
+      cursor: pointer;
+      border: 1px solid color-mix(in srgb, var(--text) 18%, transparent);
+      border-radius: 6px;
+      background: transparent;
+      color: var(--text);
+    }
     .empty {
       color: var(--label);
       padding: 8px 6px;
@@ -295,7 +310,7 @@ export class MetersViewProvider implements vscode.WebviewViewProvider {
 
     function render(groups, force) {
       if (!groups || groups.length === 0) {
-        root.innerHTML = '<div class="empty" id="emptyClick">ไม่มีหลอดให้แสดง<br/>คลิกเพื่อแสดง/ซ่อน หรือล็อกอิน</div>';
+        root.innerHTML = '<div class="empty" id="emptyClick">ไม่มีหลอดให้แสดง<br/>คลิกเพื่อแสดง/ซ่อนหลอด</div>';
         document.getElementById('emptyClick')?.addEventListener('click', () => {
           vscode.postMessage({ type: 'click', id: '_empty' });
         });
@@ -312,16 +327,27 @@ export class MetersViewProvider implements vscode.WebviewViewProvider {
         if (!groupEl) {
           groupEl = document.createElement('div');
           groupEl.dataset.group = group.id;
-          groupEl.innerHTML = '<div class="group-title"></div><div class="err" hidden></div>';
+          groupEl.innerHTML =
+            '<div class="group-title"></div>' +
+            '<div class="err" hidden></div>' +
+            '<button type="button" class="auth-cta" hidden>Refresh</button>';
+          const cta = groupEl.querySelector('.auth-cta');
+          cta?.addEventListener('click', () => {
+            vscode.postMessage({ type: 'refresh' });
+          });
           root.appendChild(groupEl);
         }
         groupEl.querySelector('.group-title').textContent = group.displayName;
         const err = groupEl.querySelector('.err');
+        const cta = groupEl.querySelector('.auth-cta');
         if (group.error) {
           err.hidden = false;
           err.textContent = group.error;
         } else {
           err.hidden = true;
+        }
+        if (cta) {
+          cta.hidden = !group.authError;
         }
         const keepMeters = new Set(group.meters.map((m) => m.id));
         for (const row of [...groupEl.querySelectorAll('[data-meter]')]) {
