@@ -1,6 +1,11 @@
-import * as fs from "fs";
-import { readItemTableValue } from "../sqlite";
-import { postJson, rethrowRateLimit } from "../http";
+import {
+  CursorAuthError,
+  loadCursorCredentials,
+  persistCursorAccessToken,
+  refreshCursorAccessToken,
+  resolveCursorBearer,
+} from "../cursorAuth";
+import { HttpStatusError, postJson, rethrowRateLimit } from "../http";
 import { vscodeStateDb } from "../paths";
 import {
   clampPercent,
@@ -80,15 +85,8 @@ export function getCursorStateDbPath(): string {
 }
 
 export async function getCursorAccessToken(): Promise<string> {
-  const dbPath = getCursorStateDbPath();
-  if (!fs.existsSync(dbPath)) {
-    throw new Error("Cursor state database not found. Sign in to Cursor first.");
-  }
-  const token = await readItemTableValue(dbPath, "cursorAuth/accessToken");
-  if (token) {
-    return token;
-  }
-  throw new Error("Could not read Cursor access token. Are you signed in?");
+  const { token } = await resolveCursorBearer();
+  return token;
 }
 
 function buildAgents(
@@ -178,8 +176,9 @@ export function cursorUsageToSnapshot(usage: TokenUsage): ProviderSnapshot {
   return okSnapshot(CURSOR_ID, titled(CURSOR_DISPLAY, usage.planName), meters);
 }
 
-export async function fetchTokenUsage(): Promise<TokenUsage> {
-  const token = await getCursorAccessToken();
+async function fetchPeriodUsage(
+  token: string
+): Promise<{ period: PeriodUsageResponse; planName?: string }> {
   const auth = {
     Authorization: `Bearer ${token}`,
     "Connect-Protocol-Version": "1",
@@ -192,6 +191,30 @@ export async function fetchTokenUsage(): Promise<TokenUsage> {
     ) as Promise<PeriodUsageResponse>,
     fetchCursorPlanName(token),
   ]);
+  return { period, planName };
+}
+
+export async function fetchTokenUsage(): Promise<TokenUsage> {
+  let { token, creds } = await resolveCursorBearer();
+
+  let period: PeriodUsageResponse;
+  let planName: string | undefined;
+  try {
+    ({ period, planName } = await fetchPeriodUsage(token));
+  } catch (err) {
+    if (
+      err instanceof HttpStatusError &&
+      err.status === 401 &&
+      creds.refreshToken
+    ) {
+      const next = await refreshCursorAccessToken(creds.refreshToken);
+      await persistCursorAccessToken(creds, next.accessToken, next.refreshToken);
+      token = next.accessToken;
+      ({ period, planName } = await fetchPeriodUsage(token));
+    } else {
+      throw err;
+    }
+  }
 
   const plan = period.planUsage;
   if (!plan || (plan.autoPercentUsed == null && plan.apiPercentUsed == null)) {
@@ -203,6 +226,10 @@ export async function fetchTokenUsage(): Promise<TokenUsage> {
 
   let aggregations: Aggregation[] = [];
   try {
+    const auth = {
+      Authorization: `Bearer ${token}`,
+      "Connect-Protocol-Version": "1",
+    };
     const agg = (await postJson(
       "https://api2.cursor.sh/aiserver.v1.DashboardService/GetAggregatedUsageEvents",
       auth,
@@ -240,11 +267,32 @@ async function fetchCursorPlanName(token: string): Promise<string | undefined> {
 
 async function detect(_ctx: FetchContext): Promise<boolean> {
   try {
-    await getCursorAccessToken();
+    await loadCursorCredentials();
     return true;
-  } catch {
+  } catch (err) {
+    if (err instanceof CursorAuthError && err.code === "encrypted_only") {
+      // Still "present" so the panel can show an auth CTA instead of skipping.
+      return true;
+    }
     return false;
   }
+}
+
+function authFailedSnapshot(err: unknown): ProviderSnapshot {
+  if (err instanceof CursorAuthError) {
+    return failedSnapshot(CURSOR_ID, CURSOR_DISPLAY, err.message, {
+      authError: true,
+    });
+  }
+  if (err instanceof HttpStatusError && err.status === 401) {
+    return failedSnapshot(
+      CURSOR_ID,
+      CURSOR_DISPLAY,
+      "Cursor auth rejected (401). Token may be encrypted or expired.",
+      { authError: true }
+    );
+  }
+  return failedSnapshot(CURSOR_ID, CURSOR_DISPLAY, errorMessage(err));
 }
 
 async function fetchSnapshot(_ctx: FetchContext): Promise<ProviderSnapshot> {
@@ -253,7 +301,7 @@ async function fetchSnapshot(_ctx: FetchContext): Promise<ProviderSnapshot> {
     return cursorUsageToSnapshot(usage);
   } catch (err) {
     rethrowRateLimit(err);
-    return failedSnapshot(CURSOR_ID, CURSOR_DISPLAY, errorMessage(err));
+    return authFailedSnapshot(err);
   }
 }
 

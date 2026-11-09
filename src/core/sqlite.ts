@@ -61,3 +61,67 @@ export async function readItemTableValue(
     `SELECT value FROM ItemTable WHERE key = '${escaped}' LIMIT 1;`
   );
 }
+
+async function writeWithNodeSqlite(
+  dbPath: string,
+  key: string,
+  value: string
+): Promise<boolean> {
+  try {
+    const { DatabaseSync } = await import("node:sqlite");
+    const db = new DatabaseSync(dbPath);
+    try {
+      const update = db.prepare(
+        "UPDATE ItemTable SET value = ? WHERE key = ?"
+      );
+      const result = update.run(value, key) as { changes?: number };
+      if ((result.changes ?? 0) > 0) {
+        return true;
+      }
+      db.prepare("INSERT INTO ItemTable (key, value) VALUES (?, ?)").run(
+        key,
+        value
+      );
+      return true;
+    } finally {
+      db.close();
+    }
+  } catch {
+    return false;
+  }
+}
+
+async function writeWithSqliteCli(
+  dbPath: string,
+  key: string,
+  value: string
+): Promise<boolean> {
+  const escapedKey = key.replace(/'/g, "''");
+  const escapedValue = value.replace(/'/g, "''");
+  const sql =
+    `UPDATE ItemTable SET value = '${escapedValue}' WHERE key = '${escapedKey}';` +
+    `INSERT INTO ItemTable (key, value) SELECT '${escapedKey}', '${escapedValue}' ` +
+    `WHERE changes() = 0;`;
+  try {
+    await execFileAsync("sqlite3", [dbPath, sql], {
+      maxBuffer: 2 * 1024 * 1024,
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function writeItemTableValue(
+  dbPath: string,
+  key: string,
+  value: string
+): Promise<void> {
+  if (await writeWithNodeSqlite(dbPath, key, value)) {
+    return;
+  }
+  if (await writeWithSqliteCli(dbPath, key, value)) {
+    return;
+  }
+  throw new Error(`Could not write ItemTable key ${key}`);
+}

@@ -7,7 +7,8 @@ import { parseCursorUsage } from "./providers/cursor";
 import { parseGeminiQuota } from "./providers/gemini";
 import { parseWindsurfStatus } from "./providers/windsurf";
 import { isNewerVersion, parseSemver } from "./semver";
-import { filterVisible, hiddenFromPicked } from "./visibility";
+import { isPlaintextCursorBearer } from "./cursorAuth";
+import { filterPanelGroups, filterVisible, hiddenFromPicked } from "./visibility";
 import {
   claudeAuthorizeUrl,
   createPkce,
@@ -256,6 +257,65 @@ describe("filterVisible", () => {
     const hidden = hiddenFromPicked(all, new Set(["cursor.free"]));
     assert.equal(hidden.has("cursor.api"), true);
     assert.equal(hidden.has("cursor.free"), false);
+  });
+
+  it("keeps authError stubs in panel groups", () => {
+    const authOnly = {
+      fetchedAt: 1,
+      meters: [],
+      providers: [
+        {
+          id: "cursor",
+          displayName: "Cursor",
+          skipped: false,
+          authError: true,
+          error: "encrypted",
+          meters: [] as {
+            id: string;
+            provider: string;
+            label: string;
+            usedPercent: number;
+          }[],
+          fetchedAt: 1,
+        },
+        {
+          id: "copilot",
+          displayName: "Copilot",
+          skipped: false,
+          error: "401",
+          meters: [] as {
+            id: string;
+            provider: string;
+            label: string;
+            usedPercent: number;
+          }[],
+          fetchedAt: 1,
+        },
+      ],
+    };
+    const visible = filterVisible(authOnly, new Set());
+    assert.equal(visible.groups.length, 0);
+    const panel = filterPanelGroups(authOnly, new Set());
+    assert.equal(panel.length, 1);
+    assert.equal(panel[0]?.id, "cursor");
+    assert.equal(panel[0]?.authError, true);
+  });
+});
+
+describe("isPlaintextCursorBearer", () => {
+  it("accepts JWT-shaped tokens only", () => {
+    assert.equal(
+      isPlaintextCursorBearer(
+        "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.signature"
+      ),
+      true
+    );
+    assert.equal(
+      isPlaintextCursorBearer("cursor-safe-storage:v1:abc"),
+      false
+    );
+    assert.equal(isPlaintextCursorBearer(""), false);
+    assert.equal(isPlaintextCursorBearer(null), false);
   });
 });
 

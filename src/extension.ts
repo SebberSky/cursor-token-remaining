@@ -1,6 +1,11 @@
 import * as vscode from "vscode";
 import { fetchAll, visibleProviders, type Meter, type UsageReport } from "./core";
-import { dataMeters, filterVisible, hiddenFromPicked } from "./core/visibility";
+import {
+  dataMeters,
+  filterPanelGroups,
+  filterVisible,
+  hiddenFromPicked,
+} from "./core/visibility";
 import { MetersViewProvider, type MeterStyle } from "./metersView";
 import { watchPromptActivity } from "./promptWatcher";
 import { buildMeterTooltip, showColorMenu } from "./breakdown";
@@ -182,8 +187,8 @@ export function activate(context: vscode.ExtensionContext): void {
     if (!latestReport) {
       return;
     }
-    const { groups, meters } = filterVisible(latestReport, hiddenIds);
-    provider.setGroups(groups);
+    const { meters } = filterVisible(latestReport, hiddenIds);
+    provider.setGroups(filterPanelGroups(latestReport, hiddenIds));
     renderStatusBar(meters);
   };
 
