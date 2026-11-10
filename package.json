@@ -1,8 +1,8 @@
 {
   "name": "cursor-token-remaining",
   "displayName": "Token Remaining",
-  "description": "Usage meters for Cursor, Copilot, Claude, Codex, Gemini, and Windsurf \u2014 status bar, CLI, and MCP.",
-  "version": "0.3.1",
+  "description": "Usage meters for Cursor, Copilot, Claude, Codex, Gemini, and Windsurf — status bar, CLI, and MCP.",
+  "version": "0.3.2",
   "publisher": "guyrocker",
   "license": "MIT",
   "repository": {
