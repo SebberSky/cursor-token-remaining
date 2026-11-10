@@ -7,8 +7,13 @@ import { parseCursorUsage } from "./providers/cursor";
 import { parseGeminiQuota } from "./providers/gemini";
 import { parseWindsurfStatus } from "./providers/windsurf";
 import { isNewerVersion, parseSemver } from "./semver";
-import { isPlaintextCursorBearer } from "./cursorAuth";
+import {
+  decryptCursorSafeStorageValue,
+  isPlaintextCursorBearer,
+  isSealedCursorToken,
+} from "./cursorAuth";
 import { filterPanelGroups, filterVisible, hiddenFromPicked } from "./visibility";
+import * as crypto from "crypto";
 import {
   claudeAuthorizeUrl,
   createPkce,
@@ -316,6 +321,28 @@ describe("isPlaintextCursorBearer", () => {
     );
     assert.equal(isPlaintextCursorBearer(""), false);
     assert.equal(isPlaintextCursorBearer(null), false);
+  });
+});
+
+describe("decryptCursorSafeStorageValue", () => {
+  it("round-trips a v10 sealed JWT", () => {
+    const jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.signature";
+    const password = "unit-test-password";
+    const key = crypto.pbkdf2Sync(
+      password,
+      Buffer.from("saltysalt"),
+      1003,
+      16,
+      "sha1"
+    );
+    const iv = Buffer.alloc(16, 0x20);
+    const cipher = crypto.createCipheriv("aes-128-cbc", key, iv);
+    const ct = Buffer.concat([cipher.update(jwt, "utf8"), cipher.final()]);
+    const sealed =
+      "cursor-safe-storage:v1:" +
+      Buffer.concat([Buffer.from("v10"), ct]).toString("base64");
+    assert.equal(isSealedCursorToken(sealed), true);
+    assert.equal(decryptCursorSafeStorageValue(sealed, password), jwt);
   });
 });
 
